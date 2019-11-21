@@ -1,0 +1,601 @@
+#RequireContext CMapEditorPlugin
+
+#Include "TextLib" as TextLib
+#Include "MathLib" as MathLib
+#Include "TimeLib" as TiL
+
+#Struct JsonBlock {
+	Text		Modif;
+	Int3 		Coord;
+	Text 		ModelName;
+	Integer Direction;
+	Text		login;
+}
+#Struct JsonRoad {
+	Text		Modif;
+	Text 		ModelName;
+	Int3 		CoordStart;
+	Int3 		CoordEnd;
+	Text		login;
+}
+#Struct JsonTerrain {
+	Text		Modif;
+	Text 		ModelName;
+	Int3 		CoordStart;
+	Int3 		CoordEnd;
+	Text		login;
+}
+#Const HOST "http://localhost:8000"
+#Const	Version	"0.1"
+#Const	ScriptName	"Grand2.Script.txt"
+
+#Const C_CanyonRoadBlocks [
+	"RoadMain"
+]
+#Const C_StadiumRoadBlocks [
+	"StadiumRoadMain",
+	"StadiumPlatformRoad",
+	"StadiumRoadDirt",
+	"StadiumRoadDirtHigh",
+	"StadiumTubeRoad",
+	"StadiumTubeRoadDown",
+	"StadiumTubeRoadUp",
+	"StadiumTubeRoadCross",
+	"StadiumControlRoadGlass",
+	"StadiumControlRoadPub",
+	"StadiumControlRoadCamera",
+	"StadiumTubeRoadLightSystem",
+	"StadiumTubeRoadSoundSystem",
+	"StadiumInflatableSupport"
+]
+#Const C_StormRoadBlocks [
+	"RoadDirt"
+]
+#Const C_ValleyRoadBlocks [
+	"Road2Way",
+	"Road4Way",
+	"RoadDirt"
+]
+
+declare	Boolean IsExternalEdit;
+declare Text[] CurrentCollectionRoadBlocks;
+declare Int3 SelectionStartCoord;
+declare Int3 SelectionEndCoord;
+
+
+Void HttpGet(Text _address) {
+		Http.CreateGet(_address, False);
+}
+
+Void HttpPost(Text _address, Text[Text] _params) {
+	declare content = "";
+	
+	foreach (Key => Param in _params) {
+		content ^= Key ^ "=" ^ Param ^"&";
+	}
+	
+	declare len = TextLib::Length(content)-1;
+	declare req = Http.CreatePost(_address, TextLib::SubString(content, 0,len),"Content-Type: application/x-www-form-urlencoded\nContent-Length: "^len);
+
+}
+
+Text getUiManialink() {
+return """
+<frame posn="0 0 5">
+	<frame posn="0 0 10">
+		<frame posn="0 0 1" id="dialog" hidden="1">
+			<quad posn="0 15.5 2" sizen="126.5 8" style="Bgs1InRace" substyle="BgGlow2" halign="center" valign="center"/>
+			<quad posn="0 -16 2" sizen="120 2" style="Bgs1InRace" substyle="BgMetalBar" halign="center" valign="center"/>
+	
+			<label posn="0 5 1" sizen="120 10" text="myLabel" autonewline="1" valign="center" halign="center" id="dialog_content"/>
+			<label posn="0 -5 1" sizen="20 5" text="OK" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="dialog_btn"/>
+	
+			<quad posn="0 0 0" sizen="120 30" style="Bgs1InRace" substyle="BgWindow2" halign="center" valign="center" opacity="0.75"/>
+		</frame>
+		<quad sizen="320 180" bgcolor="000A" halign="center" valign="center" id="dialog_bg" opacity="0"/>
+	</frame>
+
+	<frame posn="0 0 10">
+		<frame posn="0 0 1" id="booleandialog" hidden="1">
+			<quad posn="0 15.5 2" sizen="126.5 8" style="Bgs1InRace" substyle="BgGlow2" halign="center" valign="center"/>
+			<quad posn="0 -16 2" sizen="120 2" style="Bgs1InRace" substyle="BgMetalBar" halign="center" valign="center"/>
+	
+			<label posn="0 5 1" sizen="120 10" text="myLabel" autonewline="1" valign="center" halign="center" id="booleandialog_content"/>
+			<frame posn="-25 -5">
+				<label posn="0 0 1" sizen="20 5" text="Yes" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="booleandialog_btnyes"/>
+				<label posn="50 0 1" sizen="20 5" text="No" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="booleandialog_btnno"/>
+			</frame>
+	
+			<quad posn="0 0 0" sizen="120 30" style="Bgs1InRace" substyle="BgWindow2" halign="center" valign="center" opacity="0.75"/>
+		</frame>
+		<quad sizen="320 180" bgcolor="000A" halign="center" valign="center" id="booleandialog_bg" opacity="0"/>
+	</frame>
+
+	<frame posn="0 0 10">
+	
+		<frame posn="0 0 10" id="Home" hidden="1">
+			<label pos="3 75" size="203 18" text="Welcome On Grand 2 ! " textfont="RajdhaniMono" textsize="10" halign="center" valign="center" id="welcome_content"/>
+			<quad pos="3 74.7"  size="206 21" bgcolor="FFFA" style="Bgs1" substyle="BgColorContour" halign="center" valign="center"/>
+			
+			<label posn="-50 52.4" sizen="104 17.7" text="Grand 2? What is that? " halign="center"  valign="center" textfont="RajdhaniMono" translate="0" textsize="8"/>
+			<quad pos="-97.7 47.2"  size="91.6 1.98" bgcolor="FFFA" style="Bgs1" substyle="ProgressBarSmall"/>
+			<label pos="-98 30"  size="127 29" text="Grand 2 is a project of multiplayer editor for ManiaPlanet. Based on the initial project : Grand developed by Nerpson and Guerro, and, rebuild by LeGmask and Reaby." textsize="5" textfont="file://Media/Font/BiryaniDemiBold.Font.gbx" autonewline="1" textcolor="CCCCCCFF" halign="left" valign="center"/>
+			<quad pos="-99.5 57.3"  size="129 45" bgcolor="FFFFFFFF" style="Bgs1" substyle="BgTitleGlow"/>
+			<quad pos="33.8 57.3"  size="72.8 112" bgcolor="FFFA" style="Bgs1" substyle="BgTitleGlow"/>
+
+			
+			<label posn="50 52" sizen="31 17" text="News : " halign="center"  valign="center" textfont="RajdhaniMono" translate="0" textsize="8"/>
+			<quad pos="35 46"  size="27 2" bgcolor="FFFA" style="Bgs1" substyle="ProgressBarSmall"/>
+			<label pos="36 43"  size="68 56" text="Beta 1.0 officially released" textsize="5" textfont="file://Media/Font/BiryaniDemiBold.Font.gbx" autonewline="1" textcolor="CCCCCCFF" halign="left" id="news_content"/>			
+			
+			<label posn="60 -18" sizen="53 17" text="Need Help ?" halign="center"  valign="center" textfont="RajdhaniMono" translate="0" textsize="8"/>
+			<quad pos="35 -24"  size="48 2" bgcolor="FFFA" style="Bgs1" substyle="ProgressBarSmall"/>
+			<label pos="36 -27"  size="68 26" text="Join the official discord server !" textsize="5" textfont="file://Media/Font/BiryaniDemiBold.Font.gbx" autonewline="1" textcolor="CCCCCCFF" halign="left" id="version_content"/>	
+			<label posn="70 -47" sizen="41 5" text="Discord" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="discord_btn" url="https://discord.gg/sFAzTFm"/>
+			
+			<label posn="-81 4" sizen="48 17" text="Ready? " halign="center"  valign="center" textfont="RajdhaniMono" translate="0" textsize="8"/>
+			<quad pos="-96 -2"  size="27 2" bgcolor="FFFA" style="Bgs1" substyle="ProgressBarSmall"/>
+			<label pos="-97 -8"  size="96 26" text="Server Adresse : " textsize="5" textfont="file://Media/Font/BiryaniDemiBold.Font.gbx" autonewline="1" textcolor="CCCCCCFF" halign="left" id="version_content"/>	
+			<entry posn="-86 -19" sizen="102 6" valign="center" halign="left" id="serveradresse" scriptevents="1" focusareacolor1="0002" focusareacolor2="0003" default="http://grand2.ga:8000" textformat="Basic"/>
+			<label pos="-97 -27"  size="96 26" text="Server Password : " textsize="5" textfont="file://Media/Font/BiryaniDemiBold.Font.gbx" autonewline="1" textcolor="CCCCCCFF" halign="left" id="version_content"/>	
+			<entry posn="-86 -37" sizen="102 6" valign="center" halign="left" id="serverpass" scriptevents="1" focusareacolor1="0002" focusareacolor2="0003" textformat="Password"/>
+			<label posn="-54.9 -45.5" sizen="20 5" text="Login" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="home_btnlogin"/>
+			<label posn="-15.9 -45.5" sizen="20 5" text="Exit" valign="center" halign="center" style="CardButtonMedium" scriptevents="1" id="home_btnexit"/>
+			<quad pos="-99 9"  size="129 63" bgcolor="FFFA" style="Bgs1" substyle="BgTitleGlow"/>
+	
+			<quad posn="3 16" sizen="211 146" style="Bgs1" substyle="BgCardList" halign="center" valign="center" opacity="0.75"/>
+		</frame>
+		<quad sizen="320 180" bgcolor="000A" halign="center" valign="center" id="home_bg" opacity="0"/>
+	</frame>
+	<frame posn="4 0 8" id="events">
+		<label posn="115 63" sizen="80 6" text="Last events" valign="center2" halign="center" style="TextTitle3"/>
+		<quad pos="75 66 2" z-index="0" size="80 41" bgcolor="FFFA" style="Bgs1" substyle="BgColorContour"/>
+		<quad posn="115 45 0" sizen="80 40" bgcolor="FFFA" style="Bgs1" substyle="BgCardList" valign="center" halign="center"/>
+		
+		<frame posn="77 61 2" id="eventlistcontainer">
+			<label posn="0 -1" sizen="68 34" autonewline="1" textsize="0.5" id="eventlist"/>	
+		</frame>
+		<quad posn="111 44 1" sizen="70 35" bgcolor="FFFA" style="EnergyBar" substyle="BgText" valign="center" halign="center" opacity="0.25" id=eventlistbg/>
+		<quad posn="145 61 1" sizen="10 10" bgcolor="FFFA" style="UIConstruction_Buttons" substyle="Up" scriptevents="1" id="eventup"/>
+		<quad posn="145 37 1" sizen="10 10" bgcolor="FFFA" style="UIConstruction_Buttons" substyle="Down" scriptevents="1" id="eventdown"/>
+	</frame>
+	<frame id="Setting">
+		<quad pos="149 -66" z-index="0" size="11 11" bgcolor="FFFA" style="Icons128x32_1" substyle="Settings" scriptevents="1" id="settings"/>
+	</frame>
+</frame>
+<script><!--
+
+#Include "MathLib" as ML
+#Include "TextLib" as TL
+#Include "AnimLib" as AL
+
+declare Integer	LastEventListChange;
+
+Void ShowDialog(Text Message) {
+	declare Integer DialogVisibleTime = Now;
+
+	declare Boolean Close = False;
+
+	declare CMlFrame Dialog <=> (Page.GetFirstChild("dialog") as CMlFrame);
+	declare CMlQuad Background <=> (Page.GetFirstChild("dialog_bg") as CMlQuad);
+	declare CMlLabel Content <=> (Page.GetFirstChild("dialog_content") as CMlLabel);
+	declare CMlLabel Btn <=> (Page.GetFirstChild("dialog_btn") as CMlLabel);
+
+	Content.SetText(Message);
+
+	
+	while (!Close) {
+
+	
+		yield;
+		Background.Opacity = AL::EaseInOutSine(Now - DialogVisibleTime, 0., 0.75, 200);
+		Dialog.Show();
+		Dialog.RelativeScale = AL::EaseInOutSine(Now - DialogVisibleTime, 1.2, -0.2, 200);
+
+		foreach (Event in PendingEvents) {
+			if (Event.Type == CMlEvent::Type::MouseClick && Event.Control == Btn)
+				Close = True;
+		}
+	}
+	Dialog.Hide();
+	Background.Opacity = 0.;
+
+	sleep(200);
+
+}
+
+Boolean ShowBooleanDialog(Text Message) {
+	declare Integer DialogVisibleTime = Now;
+
+	declare Boolean Close = False;
+	declare Boolean Choice;
+
+	declare CMlFrame Dialog <=> (Page.GetFirstChild("booleandialog") as CMlFrame);
+	declare CMlQuad Background <=> (Page.GetFirstChild("booleandialog_bg") as CMlQuad);
+	declare CMlLabel Content <=> (Page.GetFirstChild("booleandialog_content") as CMlLabel);
+	declare CMlLabel BtnYes <=> (Page.GetFirstChild("booleandialog_btnyes") as CMlLabel);
+	declare CMlLabel BtnNo <=> (Page.GetFirstChild("booleandialog_btnno") as CMlLabel);
+
+	Content.SetText(Message);
+
+	Audio.PlaySoundEvent(CAudioManager::ELibSound::ShowDialog, 0, 1.);
+	while (!Close) {
+		yield;
+		Background.Opacity = AL::EaseInOutSine(Now - DialogVisibleTime, 0., 0.75, 200);
+		Dialog.Show();
+		Dialog.RelativeScale = AL::EaseInOutSine(Now - DialogVisibleTime, 1.2, -0.2, 200);
+
+		foreach (Event in PendingEvents) {
+			if (Event.Type == CMlEvent::Type::MouseClick) {
+				switch (Event.Control) {
+					case BtnYes: {
+						Choice = True;
+						Close = True;
+					}
+					case BtnNo: {
+						Choice = False;
+						Close = True;
+					}
+				}
+			}
+		}
+	}
+	Audio.PlaySoundEvent(CAudioManager::ELibSound::HideDialog, 0, 1.);
+
+	Dialog.Hide();
+	Background.Opacity = 0.;
+
+	sleep(200);
+
+	return Choice;
+}
+
+Void home() {
+	declare Integer DialogVisibleTime = Now;
+	declare Boolean Close = False;
+
+	declare CMlFrame Dialog <=> (Page.GetFirstChild("Home") as CMlFrame);
+	declare CMlQuad Background <=> (Page.GetFirstChild("home_bg") as CMlQuad);
+	declare CMlLabel Welcome <=> (Page.GetFirstChild("welcome_content") as CMlLabel);
+	declare CMlLabel News <=> (Page.GetFirstChild("news_content") as CMlLabel);
+	declare CMlLabel Btn <=> (Page.GetFirstChild("home_btnexit") as CMlLabel);
+	declare CMlEntry PasswordServer <=> (Page.GetFirstChild("serverpass") as CMlEntry);
+	declare CMlEntry TextEntry <=> (Page.GetFirstChild("serveradresse") as CMlEntry);
+	declare news = Http.CreateGet("http://localhost:8000/news");
+	
+
+	wait(news.IsCompleted);
+	Welcome.SetText("Welcome "^LocalUser.Name^"$z on Grand 2");
+	News.SetText("Version : 1.0" ^news.Result);
+	Http.Destroy(news);
+	while (!Close) {
+		yield;
+		Background.Opacity = AL::EaseInOutSine(Now - DialogVisibleTime, 0., 0.75, 200);
+		Dialog.Show();
+		Dialog.RelativeScale = AL::EaseInOutSine(Now - DialogVisibleTime, 1.2, -0.2, 200);
+		foreach (Event in PendingEvents) {
+			if (Event.Type == CMlScriptEvent::Type::MouseClick && Event.Control == Btn)
+				Close = True;
+		}
+	}
+	Dialog.Hide();
+	Background.Opacity = 0.;
+	sleep(200);
+
+	//return TextEntry.Value;
+	//log(host);
+	
+}
+
+Integer UpdateEventList(Integer _CurrentLine) {
+	declare Text Page_EventList for Page;
+	declare CMlLabel EventList <=> (Page.GetFirstChild("eventlist") as CMlLabel);
+	declare CMlQuad EventListBg <=> (Page.GetFirstChild("eventlistbg") as CMlQuad);
+	declare Integer OldLineCount = EventList.ValueLineCount;
+	
+	if (Page_EventList != EventList.Value) {
+		EventList.SetText(Page_EventList);
+		yield;
+		declare Integer NewLinesCount = EventList.ValueLineCount - OldLineCount;
+		
+		if (NewLinesCount > 0 && EventList.ValueLineCount > 17) {
+			EventList.RelativePosition[1] = (EventList.ValueLineCount - 17) * 2.;
+		}
+		
+		LastEventListChange = Now;
+		EventListBg.Opacity = 0.5;
+		return EventList.ValueLineCount - 18;
+	}
+	
+	if (Now - LastEventListChange > 200)
+		EventListBg.Opacity = 0.25;
+	return _CurrentLine;
+}
+
+
+
+
+
+
+main() {
+
+	declare CMlFrame	FrameEventListContainer	<=>	(Page.GetFirstChild("eventlistcontainer")	as CMlFrame);
+	declare CMlLabel	LabelEventList			<=>	(Page.GetFirstChild("eventlist")			as CMlLabel);
+	declare CMlQuad		QuadEventsUp			<=>	(Page.GetFirstChild("eventup")				as CMlQuad);
+	declare CMlQuad		QuadEventsDown			<=>	(Page.GetFirstChild("eventdown")			as CMlQuad);
+
+	declare Integer CurrentLine = 0;	
+
+	FrameEventListContainer.ClipWindowActive = True;
+	FrameEventListContainer.ClipWindowRelativePosition = <LabelEventList.RelativePosition[0] + LabelEventList.Size[0] / 2 - 1, LabelEventList.RelativePosition[1] - LabelEventList.Size[1] / 2 + 0.8>;
+	FrameEventListContainer.ClipWindowSize = LabelEventList.Size;
+
+	ShowBooleanDialog("Launching this plugin will reset all you current work. Continue?");
+	//home();
+
+	while (True) {
+		yield;
+		CurrentLine = UpdateEventList(CurrentLine);
+	}
+		
+
+
+		
+}
+--></script>	
+""";
+}
+Text LineFeed() {
+	return """
+""";
+}
+
+Void AddEventLine(Text _Line) {
+	declare Text	Page_EventList			for ManialinkPage = "";
+	Page_EventList ^= LineFeed() ^ _Line;
+}
+
+Void SendMessage(Text Message) {
+	declare Text[Text] json = ["data" => Message];
+	HttpPost(HOST^"/push?login="^LocalUser.Login, json);
+}
+
+
+Integer getBlockDirection(CMapEditorPlugin::CardinalDirections direction) {
+	switch (direction) {
+			case CMapEditorPlugin::CardinalDirections::North:  {return 0;}
+			case CMapEditorPlugin::CardinalDirections::East: {return 1;}
+			case CMapEditorPlugin::CardinalDirections::South:{ return 2;}
+			case CMapEditorPlugin::CardinalDirections::West:{ return 3;}
+	}
+	return 0;
+}
+
+CMapEditorPlugin::CardinalDirections convertBlockDirection(Integer direction) {
+	switch (direction) {
+			case 0: return CMapEditorPlugin::CardinalDirections::North;
+			case 1: return CMapEditorPlugin::CardinalDirections::East;
+			case 2: return CMapEditorPlugin::CardinalDirections::South;
+			case 3: return CMapEditorPlugin::CardinalDirections::West;
+	}
+	return CMapEditorPlugin::CardinalDirections::North;
+}
+
+/** Logic */
+Void OnListenerResponse(Text _response) {
+declare JsonBlock block;
+declare JsonRoad Road;
+declare JsonTerrain Terrain;
+
+block.fromjson(_response);
+Road.fromjson(_response);
+Terrain.fromjson(_response);
+
+declare BlockModel = GetBlockModelFromName(block.ModelName);
+declare RoadModel = GetBlockModelFromName(Road.ModelName);
+declare TerrainModel = GetTerrainBlockModelFromName(Terrain.ModelName);
+
+
+if (block.Modif == "Place"){
+	PlaceBlock(BlockModel, block.Coord, convertBlockDirection(block.Direction));
+	IsExternalEdit = True;
+}
+else if (block.Modif == "Erase"){
+	RemoveBlock(block.Coord);
+	IsExternalEdit = True;
+}
+else if (Road.Modif == "PlaceRoad"){
+	PlaceRoadBlocks(RoadModel, Road.CoordStart, Road.CoordEnd);
+	IsExternalEdit = True;
+}
+else if (Terrain.Modif == "PlaceTerrain"){
+	PlaceTerrainBlocks(TerrainModel, Terrain.CoordStart, Terrain.CoordEnd);
+	IsExternalEdit = True;
+}
+else if (Terrain.Modif == "EraseTerrain"){
+	RemoveTerrainBlocks(Terrain.CoordStart, Terrain.CoordEnd);
+	IsExternalEdit = True;
+}
+}
+
+***OnInit***
+***
+
+
+LayersDefaultManialinkVersion = 3;
+// enable when ui ready for use
+ManialinkText = getUiManialink();
+
+log("starting...");
+log(TiL::FormatDate(TiL::GetCurrent(), TiL::EDateFormats::Time) ^" > " ^ ScriptName ^ " V" ^ Version ^ " launched.");
+IsExternalEdit = False;
+HttpGet(HOST^"/listener?login="^LocalUser.Login);
+***
+
+
+
+***OnHttpRequest***
+***
+
+if(Request.Url == HOST^"/listener?login="^LocalUser.Login) {
+	if (Request.StatusCode == 200) {
+		OnListenerResponse(Request.Result);
+	}
+	log("waitin...");
+	HttpGet(HOST^"/listener?login="^LocalUser.Login);
+}
+
+***
+
+
+***OnMapModifiedBlockPlace***
+***
+if (IsExternalEdit == False){ 
+	declare Modif = "Place"; 
+	
+	declare JsonBlock block = JsonBlock{Modif = Modif, Coord = Cursor.Coord, ModelName = Cursor.BlockModel.Name, Direction = getBlockDirection(Cursor.Dir)};
+
+	SendMessage(block.tojson());
+}
+else{
+	IsExternalEdit = False;
+}
+
+***
+
+***OnMapModifiedBlockErase***
+***
+if (IsExternalEdit == False) {
+	declare Modif = "Erase"; 
+	
+	declare JsonBlock block = JsonBlock{Modif = Modif, Coord = Cursor.Coord};
+
+	SendMessage(block.tojson());
+}
+else{
+	IsExternalEdit = False;
+}
+
+***
+
+***OnMapModifiedRoadPlace***
+***
+if (IsExternalEdit == False) {
+	declare Modif = "PlaceRoad"; 
+	
+	declare JsonRoad Road = JsonRoad{Modif = Modif, ModelName = Cursor.BlockModel.Name, CoordStart = SelectionStartCoord,  CoordEnd = SelectionEndCoord};
+
+	SendMessage(Road.tojson());
+}
+else{
+	IsExternalEdit = False;
+}
+
+***
+
+***OnMapModifiedTerrainPlace***
+***
+if (IsExternalEdit == False) {
+	declare Modif = "PlaceTerrain"; 
+	
+	declare JsonTerrain Terrain = JsonTerrain{Modif = Modif, ModelName = Cursor.TerrainBlockModel.Name, CoordStart = SelectionStartCoord,  CoordEnd = SelectionEndCoord};
+
+	SendMessage(Terrain.tojson());
+}
+else{
+	IsExternalEdit = False;
+}
+
+***
+
+***OnMapModifiedTerrainErase***
+***
+if (IsExternalEdit == False) {
+	declare Modif = "EraseTerrain"; 
+	
+	declare JsonTerrain Terrain = JsonTerrain{Modif = Modif, ModelName = Cursor.TerrainBlockModel.Name, CoordStart = SelectionStartCoord,  CoordEnd = SelectionEndCoord};
+
+	SendMessage(Terrain.tojson());
+}
+else{
+	IsExternalEdit = False;
+}
+
+***
+
+
+Void dummy() {
+}
+
+/* --------------------- Main Script ------------------------ */
+
+main() {
+declare Text HOST = "http://grand2.ga:8000";
++++ OnInit +++
+
+  while(True) {
+    yield;
+ 	AddEventLine("test");
+
+	 	foreach(HttpEvent in Http.PendingEvents) {
+			declare Request = HttpEvent.Request;
+			
+			+++ OnHttpRequest +++
+			
+			
+			Http.Destroy(Request);
+		} // httpEvents
+
+	  foreach (Event in PendingEvents) {
+			switch (Map.MapInfo.CollectionName) {
+				case "Canyon": CurrentCollectionRoadBlocks = C_CanyonRoadBlocks;
+				case "Stadium": CurrentCollectionRoadBlocks = C_StadiumRoadBlocks;
+				case "Storm": CurrentCollectionRoadBlocks = C_StormRoadBlocks;
+				case "Valley": CurrentCollectionRoadBlocks = C_ValleyRoadBlocks;
+			}
+
+			switch (Event.Type) {
+				case CMapEditorPluginEvent::Type::MapModified: {
+					if(EditMode == ::EditMode::Erase) {
+						+++ OnMapModifiedBlockErase +++
+					}
+					else if (EditMode == ::EditMode::Place) {
+						if(Cursor.BlockModel != Null) {
+							if(PlaceMode == ::PlaceMode::Block) {
+								if(!Cursor.BlockModel.IsRoad && !Cursor.BlockModel.IsTerrain && !CurrentCollectionRoadBlocks.exists(Cursor.BlockModel.Name)){
+									+++ OnMapModifiedBlockPlace +++
+								}
+							}
+						}
+					}
+					
+				}
+				case CMapEditorPluginEvent::Type::CursorSelectionBegin: {
+					SelectionStartCoord = Cursor.Coord;
+				}
+				case CMapEditorPluginEvent::Type::CursorSelectionEnd: {
+					SelectionEndCoord = Cursor.Coord;
+					switch (PlaceMode) {
+						case ::PlaceMode::Block: {
+							if (Cursor.BlockModel != Null && CurrentCollectionRoadBlocks.exists(Cursor.BlockModel.Name)){
+								+++ OnMapModifiedRoadPlace +++
+							}
+						}
+
+						case ::PlaceMode::Terraform: {
+						
+							if (EditMode == ::EditMode::Place && Cursor.TerrainBlockModel != Null){
+								+++ OnMapModifiedTerrainPlace +++
+							}else if (EditMode == ::EditMode::Erase){
+								+++ OnMapModifiedTerrainErase +++
+							}
+						}
+					}															
+
+				}	
+			}
+		} // pending events
+		
+		+++ Loop +++
+  }
+}

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<manialink version="3">
+<label pos="-9 66" z-index="0" size="121 8" text="Longpolling test" textfont="RajdhaniMono" textsize="6" halign="center" valign="center"/>
+<textedit pos="-58 59" z-index="0" size="103 59"  focusareacolor1="727272FF" focusareacolor2="727272FF" scriptevents="1" id="responses"/>
+<entry pos="-56 -6" z-index="0" size="56 8" default="hello world" valign="center" focusareacolor2="7B7B7BFF" focusareacolor1="727272FF" scriptevents="1" style="TextValueSmall" id="message"/>
+<label pos="22 -6" z-index="0" size="45 8" text="Send" valign="center" halign="center" focusareacolor1="005959FF" focusareacolor2="2FB2B2FF" scriptevents="1" id="send"/>
+<script>
+<!--
+
+Void sendMessage(Text message) {
+		Http.CreateGet("http://localhost:8000/push?msg="^message, False);				
+}
+
+Void print(Text message) {
+	(Page.GetFirstChild("responses") as CMlTextEdit).Value ^= message ^ "\n";
+}
+
+main() {		
+	print("starting longpoll...");	
+	Http.CreateGet("http://localhost:8000/listener", False);
+
+	while(True) {
+		yield;
+		
+		foreach(Event in PendingEvents) {			
+			if (Event.Type == CMlScriptEvent::Type::MouseClick) {
+				if (Event.ControlId == "send") {					
+						sendMessage((Page.GetFirstChild("message") as CMlEntry).Value);
+				}
+			}	
+		} // pendingEvents
+		
+		foreach(HttpEvent in Http.PendingEvents) {
+			declare req = HttpEvent.Request;
+			
+			if (req.Url == "http://localhost:8000/listener") {
+			
+				if (req.StatusCode == 200)  {
+					print("response: "^req.Result);		
+				}
+			
+				Http.CreateGet("http://localhost:8000/listener", False);
+				print("waiting...");
+			}
+			
+			
+			Http.Destroy(req); // free resources...
+		} // httpEvents
+				
+	} // while
+}
+--></script>
+</manialink>
