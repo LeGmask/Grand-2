@@ -370,11 +370,11 @@ Void setting(Text ui) {
 			if (Event.Type == CMlScriptEvent::Type::MouseClick && Event.ControlId == "settings_debug") {
 				if (Setting_Debug == True){
 					Setting_Debug = False;
-					BtnDebug.SetText("Disable");
+					BtnDebug.SetText("Enable");
 				}
 				else {
 					Setting_Debug = True;
-					BtnDebug.SetText("Enable");
+					BtnDebug.SetText("Disable");
 				}
 				EnableEvent();	
 			}
@@ -447,10 +447,10 @@ main() {
 
 					case QuadSetting: { // show setting
 						if (Setting_Debug == True){
-							setting("Enable");
+							setting("Disable");
 						}
 						else {
-							setting("Disable");
+							setting("Enable");
 						}
 						
 					}
