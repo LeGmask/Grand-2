@@ -749,7 +749,7 @@ HOST = "http://localhost:8000";
 				}	
 			}
 			if (IsExternalEdit == True){
-				if((Now - LastEdit) > 10 ) {
+				if((Now - LastEdit) > 5 ) {
 					IsExternalEdit = False;
 				}
 			}
