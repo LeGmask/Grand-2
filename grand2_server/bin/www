@@ -3,16 +3,19 @@
 /**
  * Module dependencies.
  */
-
-var app = require('../app');
-var debug = require('debug')('grand2-server:server');
-var http = require('http');
+const app = require('../app');
+const debug = require('debug')('grand2-server:server');
+const http = require('http');
+const cli = require("./cli");
+const utils = require("./utils");
+const chalk = require('chalk');
+const Config = require('../config');
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '8000');
+const port = normalizePort(process.env.PORT || Config.serverPort);
 app.set('port', port);
 
 /**
@@ -86,5 +89,7 @@ function onListening() {
   var bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+
+  cli.log('Server is now available at ' + chalk.green(bind));
+  console.log();
 }

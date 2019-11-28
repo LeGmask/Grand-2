@@ -1,19 +1,26 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var useragent = require('express-useragent');
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const useragent = require('express-useragent');
+const basicAuth = require('express-basic-auth');
+const session = require('express-session');
+const chalk = require('chalk');
+const cli = require('./bin/cli');
+const utils = require('./bin/utils');
 
+cli.welcome();
 /** event dispatcher */
 const EventEmitter = require('events');
+const Config = require('./config');
 
 class Dispatcher extends EventEmitter {
 }
 
 const eventDispatcher = new Dispatcher();
 
-var app = express();
+let app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -21,15 +28,24 @@ app.set('view engine', 'twig');
 app.use(useragent.express());
 app.use(logger('dev'));
 app.use(express.json());
-app.use(express.urlencoded({extended: false}));
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.set('trust proxy', 1) // trust first proxy
+app.use(session({
+    secret: Config.secret,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        secure: Config.useHttps,
+        maxAge: 30000
+    }
+}));
 
 let indexRouter = require('./routes/index.js')(eventDispatcher);
-let usersRouter = require('./routes/users.js')(eventDispatcher);
+let mapeditorRouter = require('./routes/editor.js')(eventDispatcher);
 app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use('/editor', mapeditorRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

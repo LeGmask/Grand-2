@@ -6,9 +6,12 @@
     "start": "node ./bin/www"
   },
   "dependencies": {
+    "chalk": "^3.0.0",
     "cookie-parser": "~1.4.4",
     "debug": "~2.6.9",
     "express": "~4.16.1",
+    "express-basic-auth": "^1.2.0",
+    "express-session": "^1.17.0",
     "express-useragent": "^1.0.13",
     "http-errors": "~1.6.3",
     "morgan": "~1.9.1",

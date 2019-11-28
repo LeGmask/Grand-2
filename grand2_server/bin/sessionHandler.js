@@ -1,47 +1,78 @@
-/** Generate an uuid
- * @url https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript#2117523 **/
-function uuidv4() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
+let utils = require('./utils.js');
+let cli = require('./cli.js');
 
 class sessionHandler {
 
-    constructor(eventDispatcher) {
+    constructor(eventDispatcher) {        
         this.eventDispatcher = eventDispatcher;
         this.clientResponses = [];
         this.timeoutIds = [];
+        // 
+        this.users = {};
+    }
+
+    getStatus() {
+        var outUsers = [];
+        for (var user of this.users) {
+
+        }
+
+        return {
+            users: outUsers,
+
+        };
     }
 
     registerListener(req, res) {
-        let id = uuidv4();
-
+        let id = utils.uuidv4();
+        if (req.session.views) {
+            console.log(req.sessionID);
+            console.log('updates: ' + req.session.views);
+            console.log('expires in: ' + (req.session.cookie.maxAge / 1000) + 's');
+            req.session.views++;
+        } else {
+            req.session.views = 1;
+        }
         res.setHeader('Content-Type', 'text/plain;charset=utf-8');
         res.setHeader("Cache-Control", "no-cache, must-revalidate");
-
-        this.clientResponses[id] = {login: req.query['login'] || null, response: res};
+        this.clientResponses[id] = { login: req.query['login'] || null, response: res };
 
         let self = this;
-        req.on('close', function () {
+        req.on('close', function (err) {
+            if (req.session.views) {
+                req.session.views++;
+                console.log(req.session.views);
+            } else {
+                req.session.views = 1;
+                console.log(req.session.views);
+            }
+
             if (self.clientResponses.hasOwnProperty(id)) {
+                console.log(self.clientResponses.keys);
                 delete self.clientResponses[id];
             }
         });
     }
 
-    sendMessage(req) {
+
+    /**
+     * @param {*} req 
+     * @param {*} res 
+     */
+    sendMessage(req, res) {
         let login = req.query['login'] || "none";
-        let message = req.body['data'] || "{}";
+        let message = req.query['msg'] || req.body['data'] || "{}";
+        req.session.cookie.expires = new Date(Date.now() + 30000);
+        req.session.cookie.maxAge = 60000;
         for (let client in this.clientResponses) {
             console.log("sending", this.clientResponses[client].login);
-            if (this.clientResponses[client].login !== login) {
-                this.clientResponses[client].response.send(message);
-                delete this.clientResponses[client];
-            }
-            
+            // if (this.clientResponses[client].login !== login) {
+            this.clientResponses[client].response.send(message);
+            delete this.clientResponses[client];
+            // }
         }
+
+        res.end(200);
     }
 }
 
