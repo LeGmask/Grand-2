@@ -3,12 +3,14 @@ let cli = require('./cli.js');
 
 class sessionHandler {
 
-    constructor(eventDispatcher) {        
+    constructor(id, eventDispatcher) {
+        this.id = id;
         this.eventDispatcher = eventDispatcher;
         this.clientResponses = [];
         this.timeoutIds = [];
         // 
-        this.users = {};
+        this.users = [];
+        
     }
 
     getStatus() {
@@ -16,11 +18,19 @@ class sessionHandler {
         for (var user of this.users) {
 
         }
-
+        
         return {
             users: outUsers,
-
         };
+    }
+
+    startSession(req, res) {
+        this.users.push({
+            login: req.body['login'],
+            nickname: req.body['nick'],
+            token: utils.uuidv4(),
+            isAdmin: (this.users.length == 0), // boolean
+        });
     }
 
     registerListener(req, res) {
@@ -72,7 +82,7 @@ class sessionHandler {
             // }
         }
 
-        res.end(200);
+        res.send("ok.");
     }
 }
 

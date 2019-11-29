@@ -13,10 +13,15 @@ let editorSession = [];
  */
 function ensureManiaplanet(req, res, next) {
     if (req.useragent.browser === "ManiaPlanet") {
-        next();
-    };
-    // end 
-    res.sendStatus(404);
+        if (req.headers.authorization === config.serverPassword) {
+            next();
+        } else {
+            res.sendStatus(403);
+            res.end();
+        }
+    } else {
+        res.render('error', { message: "Error", error: { status: "Not Maniaplanet", stack: "" } });
+    }
 }
 
 /**
@@ -32,43 +37,58 @@ function ensureValidId(req, res, next) {
     }
     // end 
     res.sendStatus(404);
+    res.end();
 }
 
 module.exports = function (eventDispatcher) {
-
     // this route requires maniaplanet!
+    let users = {};
+
     router.use(ensureManiaplanet);
 
     // create new instances of sessionHandler
     for (var id = 0; id < config.editorInstances; id++) {
-        editorSession[id] = new sessionHandler(eventDispatcher);
+        editorSession[id] = new sessionHandler(id, eventDispatcher);
     }
     cli.success(`start of ${config.editorInstances} sessionhandlers`);
 
-    router.post('lobby', function (req, res, next) {
-        let jsonResponse = {
-            sessions: [],
+    router.all('/lobby/', function (req, res, next) {
+        let token = utils.uuidv4();
 
+        users[req.body['login']] = {
+            token: token,
+            login: req.body['login'],
+            nickname: req.body['nickname']
         };
+
+        let jsonResponse = {
+            Token: token,
+            Sessions: [],
+        };
+
         for (let session of editorSession) {
-            jsonresponse.sessions.push(session.getStatus());
+            jsonResponse.Sessions.push(session.getStatus());
         }
 
-        res.JSON(jsonResponse);
+        console.log(users);
+        console.log(jsonResponse);
+        res.send(jsonResponse);
     });
 
-    router.post(':id/listener', ensureValidId, function (req, res, next) {
-        let id = intval(req.params.id);
-        editorSession[id].registerListener(req, res);
+    router.post('/:id/join/', ensureValidId, function (req, res, next) {
+        editorSession[req.params.id].startSession(req, res);
     });
 
-    router.post(':id/push', ensureValidId, function (req, res, next) {
-        let id = intval(req.params.id);
-        editorSession[id].sendMessage(req, res);
+    router.post('/:id/listener/', ensureValidId, function (req, res, next) {
+        editorSession[req.params.id].registerListener(req, res);
     });
 
-    router.get(':id/push', ensureValidId, function (req, res, next) {
-        editorSession.sendMessage(req, res);
+    router.post('/:id/push/', ensureValidId, function (req, res, next) {
+        editorSession[req.params.id].sendMessage(req, res);
+    });
+
+    router.get('/:id/push/', ensureValidId, function (req, res, next) {
+        editorSession[req.params.id].sendMessage(req, res);
     });
 
     return router;

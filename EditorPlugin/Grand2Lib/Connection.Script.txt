@@ -1,0 +1,69 @@
+/** @context CMlScriptIngame */
+#Include "TextLib" as TextLib
+#Include "MathLib" as MathLib
+#Include "TimeLib" as TimeLib
+
+#Struct sUser {
+	Text Login;
+	Text Nickname;
+}
+
+#Struct sChannel {
+	Text Id;
+	Text Admin;
+	sUser[] Users;
+}
+
+#Struct sLobbyInfo {
+	Integer StatusCode;
+	Text Token;	
+	sChannel[] Sessions;		
+}
+
+CHttpRequest HttpGet(Text _address) {
+		return Http.CreateGet(_address, False);
+}
+
+CHttpRequest HttpPost(Text _address, Text[Text] _params, Text _headers) {
+	declare content = "";
+	
+	foreach (Key => Param in _params) {
+		content ^= Key ^ "=" ^ Param ^"&";
+	}
+	
+	declare len = TextLib::Length(content)-1;
+	
+	return Http.CreatePost(_address, TextLib::SubString(content, 0,len), _headers^"\nContent-Type: application/x-www-form-urlencoded\nContent-Length: "^len);
+}
+
+Text HttpPostSync(Text _address, Text[Text] _params, Text _headers) {
+	declare CHttpRequest req = HttpPost(_address, _params, _headers);
+	wait(req.IsCompleted);
+	Http.Destroy(req);
+	if (req.StatusCode == 200) {
+		return req.Result;
+	} 
+	
+	return "";	
+}
+
+sLobbyInfo ConnectServer(Text _address, Text _password) {
+	declare Text[Text] params = [
+		"login" => LocalUser.Login,
+		"nickname" => LocalUser.Name
+	];
+
+	declare CHttpRequest req = HttpPost(_address, params, "Authorization: "^TextLib::MLEncode(_password));
+	wait(req.IsCompleted);
+	declare sLobbyInfo output = sLobbyInfo{StatusCode=req.StatusCode};
+	
+	if (req.StatusCode == 200) {
+		declare sLobbyInfo output;	
+		declare success = output.fromjson(req.Result);
+		output.StatusCode = req.StatusCode;
+		Http.Destroy(req);	
+		return output;
+	}
+	Http.Destroy(req);	
+	return output;
+}
