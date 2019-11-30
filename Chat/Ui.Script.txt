@@ -1,6 +1,5 @@
 #RequireContext CMapEditorPlugin
 
-declare Text message;
 Text getUi() {
 return """    
 
@@ -25,26 +24,26 @@ return """
 
 
 	
-	<frame id="chat_popup" hidden="1">
-		<label pos="128 -38" size="54.9 5" text="New message:" halign="center" valign="center" id"frompopup"/>
+	<frame id="chat_popup" hidden="0">
+		<label pos="128 -38" size="54.9 5" text="New message:" halign="center" valign="center" scriptevents="1" id="frompopup"/>
 		<quad pos="128 -41" z-index="0" size="54.9 5" bgcolor="FFFA" style="EnergyBar" substyle="HeaderGaugeRight" halign="center" valign="center"/>
-		<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" halign="left" valign="top" textsize="2" autonewline="1" id="messagepopup"/>
+		<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" halign="left" valign="top" textsize="2" autonewline="1" scriptevents="1" id="messagepopup"/>
 		
 		<quad class="background" size="57 24" pos="128 -47"/>
 	</frame>
 	
 	
-	<frame posn="4 0 8" id="chat" hidden="1">
+	<frame posn="4 0 8" id="chat" hidden="0">
 		<frame posn="77 61 2" id="chatlistcontainer">
-			<label posn="-161 18.3" sizen="171 112" autonewline="1" textsize="0.4" id="chatlist"/>	
+			<label posn="-162 19" sizen="170 112" autonewline="1" textsize="2,5" scriptevents="1" id="chatlist"/>	
 		</frame>
-		<entry pos="-82.6 -44.8" z-index="0" size="128 8" default="hello world" valign="center" focusareacolor2="7B7B7BFF" focusareacolor1="727272FF" scriptevents="1" style="TextValueSmall" id="message"/>
-		<label class="uiButtonElement uiConfirmButtonElement" posn="66 -45" text="Send" scriptevents="1" id="Send" size="23 6.05"/>
-		<quad posn="-0.129 23.4" sizen="170 113" bgcolor="FFFA" style="EnergyBar" substyle="BgText" valign="center" halign="center" opacity="0.25" id=chatlistbg/>
-		<quad class="background" size="180 140" pos="0 14"/>
+		<entry pos="-84 -45" z-index="0" size="139 8" default="hello world" valign="center" focusareacolor2="7B7B7BFF" focusareacolor1="727272FF" scriptevents="1" style="TextValueSmall" id="message"/>
+		<label class="uiButtonElement uiConfirmButtonElement" posn="71 -45" text="Send" scriptevents="1" id="Send" size="29 7.63"/>
+		
+		<quad class="background" size="180 140" pos="0 15"/>
 	</frame>
 
-	<quad pos="136 -68" z-index="0" size="10 10" bgcolor="FFFA" style="Icons128x32_1" substyle="Windowed" id="chatbtn"/>
+	<quad pos="136 -68" z-index="0" size="10 10" bgcolor="FFFA" style="Icons128x32_1" substyle="Windowed" scriptevents="1" id="chatbtn"/>
 
 <script><!--
 	
@@ -53,17 +52,16 @@ return """
     #Include "AnimLib" as AL
     
 	declare Integer	LastChatListChange;
-	declare Boolean ChatSate;
+	declare Boolean ChatState;
 
 	Void Chatpopup(Text _message) {
-	declare Text Page_Chatpopup for Page;
 	declare Integer DialogVisibleTime = Now;
 	declare Integer Closepopup = Now;
 	declare Boolean Close = False;
 	
 
 	declare CMlFrame Dialog <=> (Page.GetFirstChild("chat_popup") as CMlFrame);
-	declare CMlFrame Content <=> (Page.GetFirstChild("messagepopup") as CMlFrame);
+	declare CMlLabel Content <=> (Page.GetFirstChild("messagepopup") as CMlLabel);
 	
 	
 	Content.SetText(_message);
@@ -87,7 +85,6 @@ return """
 Integer UpdateChatList(Integer _CurrentChatLine) {
 	declare Text Page_ChatList for Page;
 	declare CMlLabel ChatList <=> (Page.GetFirstChild("chatlist") as CMlLabel);
-	declare CMlQuad ChatListBg <=> (Page.GetFirstChild("chatlistbg") as CMlQuad);
 	declare Integer OldLineCount = ChatList.ValueLineCount;
 	
 	if (Page_ChatList != ChatList.Value) {
@@ -95,17 +92,14 @@ Integer UpdateChatList(Integer _CurrentChatLine) {
 		yield;
 		declare Integer NewLinesCount = ChatList.ValueLineCount - OldLineCount;
 		
-		if (NewLinesCount > 0 && ChatList.ValueLineCount > 17) {
-			ChatList.RelativePosition[1] = (ChatList.ValueLineCount - 17) * 2.;
+		if (NewLinesCount > 0 && ChatList.ValueLineCount > 18) {
+			ChatList.RelativePosition[1] = (ChatList.ValueLineCount - 18) * 2.;
 		}
 		
 		LastChatListChange = Now;
-		ChatListBg.Opacity = 0.5;
 		return ChatList.ValueLineCount - 18;
 	}
 	
-	if (Now - LastChatListChange > 200)
-		ChatListBg.Opacity = 0.25;
 	return _CurrentChatLine;
 }
 Void chat() {
@@ -114,7 +108,7 @@ Void chat() {
 		Chat.Show();
 		ChatState = True;
 	}
-	else if (ChateState== True){
+	else if (ChatState == True){
 		Chat.Hide();
 		ChatState = False;
 	}
@@ -163,7 +157,7 @@ Void AddChatLine(Text _Line) {
 ***
 LayersDefaultManialinkVersion = 3;
 ManialinkText = getUi();
-
+AddChatLine("> $0FFGrand 2 $000- $FFFgsuccessfuly started ! ");
 log("starting...");
 
 ***
@@ -179,6 +173,6 @@ main() {
 
   while(True) {
     yield;
-	AddChatLine("Test");
+	//AddChatLine("Test");
   }
 }
