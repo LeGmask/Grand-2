@@ -3,9 +3,17 @@
 #Include "MathLib" as MathLib
 #Include "TimeLib" as TimeLib
 
+#Struct sServerInfo {
+	Text Host;
+	Text Password;
+	Text Token;
+	Text InstanceId;
+}
+
 #Struct sUser {
 	Text Login;
 	Text Nickname;
+	Boolean isAdmin;
 }
 
 #Struct sChannel {
@@ -19,32 +27,40 @@
 	Text Token;	
 	sChannel[] Sessions;		
 }
+declare sServerInfo Grand2_serverInfo;
 
 CHttpRequest HttpGet(Text _address) {
 		return Http.CreateGet(_address, False);
 }
 
-CHttpRequest HttpPost(Text _address, Text[Text] _params, Text _headers) {
-	declare content = "";
-	
-	foreach (Key => Param in _params) {
+CHttpRequest HttpPost(Text _address, Text[Text] _params) {
+	declare helper = _params;
+	if (Grand2_serverInfo.Token != "") {
+		helper["token"] = Grand2_serverInfo.Token;
+	}
+	log(helper);
+	declare content = "";	
+	foreach (Key => Param in helper) {
 		content ^= Key ^ "=" ^ Param ^"&";
 	}
 	
-	declare len = TextLib::Length(content)-1;
+	declare len = TextLib::Length(content)-1;	
+	return Http.CreatePost(_address, TextLib::SubString(content, 0,len), "authorization: "^TextLib::MLEncode(Grand2_serverInfo.Password)^"\nContent-Type: application/x-www-form-urlencoded");
 	
-	return Http.CreatePost(_address, TextLib::SubString(content, 0,len), _headers^"\nContent-Type: application/x-www-form-urlencoded\nContent-Length: "^len);
 }
 
 Text HttpPostSync(Text _address, Text[Text] _params, Text _headers) {
-	declare CHttpRequest req = HttpPost(_address, _params, _headers);
+	declare CHttpRequest req = HttpPost(_address, _params);
+	
 	wait(req.IsCompleted);
-	Http.Destroy(req);
+	declare output = "";
 	if (req.StatusCode == 200) {
-		return req.Result;
+		output = req.Result;
+		Http.Destroy(req);
+		return output;
 	} 
 	
-	return "";	
+	return output;	
 }
 
 sLobbyInfo ConnectServer(Text _address, Text _password) {
@@ -52,18 +68,49 @@ sLobbyInfo ConnectServer(Text _address, Text _password) {
 		"login" => LocalUser.Login,
 		"nickname" => LocalUser.Name
 	];
-
-	declare CHttpRequest req = HttpPost(_address, params, "Authorization: "^TextLib::MLEncode(_password));
+	Grand2_serverInfo = sServerInfo{Host=_address, Password=_password};
+	
+	declare CHttpRequest req = HttpPost(_address^"/editor/lobby", params);
 	wait(req.IsCompleted);
 	declare sLobbyInfo output = sLobbyInfo{StatusCode=req.StatusCode};
 	
 	if (req.StatusCode == 200) {
 		declare sLobbyInfo output;	
 		declare success = output.fromjson(req.Result);
+		Grand2_serverInfo.Token = output.Token;
 		output.StatusCode = req.StatusCode;
 		Http.Destroy(req);	
 		return output;
 	}
+	
 	Http.Destroy(req);	
 	return output;
 }
+
+Text GetPollUrl() {
+	return Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/listener";
+}
+
+
+Void Poll() {
+		declare req = HttpPost(GetPollUrl(), []);
+}
+
+Void SendMessage(Text message) {
+	declare req = HttpPost(Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/push", ["data"=>message]);
+}
+
+Boolean JoinInstance(Text _instanceId) {
+	declare CHttpRequest req = HttpPost(Grand2_serverInfo.Host^"/editor/"^_instanceId^"/join", []);
+	wait(req.IsCompleted);
+	if (req.StatusCode == 200) {
+	Grand2_serverInfo.InstanceId = _instanceId;
+	return True;
+	}
+	
+	Grand2_serverInfo.InstanceId = "";
+	return False;
+}
+
+
+

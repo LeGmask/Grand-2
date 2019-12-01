@@ -8,29 +8,30 @@ class sessionHandler {
         this.eventDispatcher = eventDispatcher;
         this.clientResponses = [];
         this.timeoutIds = [];
-        // 
         this.users = [];
-        
+
     }
 
     getStatus() {
-        var outUsers = [];
-        for (var user of this.users) {
-
+        let admin = null;
+        if (this.users.length > 0) {
+            admin = this.users[0].login;
         }
-        
+
         return {
-            users: outUsers,
+            Id: this.id,
+            Admin: admin,
+            Users: this.users
         };
     }
 
     startSession(req, res) {
         this.users.push({
-            login: req.body['login'],
-            nickname: req.body['nick'],
-            token: utils.uuidv4(),
+            Login: req.user.login,
+            Nickname: req.user.nickname,
             isAdmin: (this.users.length == 0), // boolean
         });
+        res.send("ok");
     }
 
     registerListener(req, res) {
@@ -45,8 +46,11 @@ class sessionHandler {
         }
         res.setHeader('Content-Type', 'text/plain;charset=utf-8');
         res.setHeader("Cache-Control", "no-cache, must-revalidate");
-        this.clientResponses[id] = { login: req.query['login'] || null, response: res };
-
+        var login = "n/a";
+        if (req.user) {
+            login = req.user.login;
+        }
+        this.clientResponses[id] = { login: login || null, response: res };
         let self = this;
         req.on('close', function (err) {
             if (req.session.views) {
@@ -56,9 +60,7 @@ class sessionHandler {
                 req.session.views = 1;
                 console.log(req.session.views);
             }
-
             if (self.clientResponses.hasOwnProperty(id)) {
-                console.log(self.clientResponses.keys);
                 delete self.clientResponses[id];
             }
         });
@@ -70,8 +72,7 @@ class sessionHandler {
      * @param {*} res 
      */
     sendMessage(req, res) {
-        let login = req.query['login'] || "none";
-        let message = req.query['msg'] || req.body['data'] || "{}";
+        let message = req.body['data'] || "{}";
         req.session.cookie.expires = new Date(Date.now() + 30000);
         req.session.cookie.maxAge = 60000;
         for (let client in this.clientResponses) {

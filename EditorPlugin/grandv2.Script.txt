@@ -3,7 +3,6 @@
 #Include "TextLib" as TextLib
 #Include "MathLib" as MathLib
 #Include "TimeLib" as TimeLib
-
 #Include "EditorPlugins/Grand2Lib/Ui.Script.txt" as Grand2UI
 #Include "EditorPlugins/Grand2Lib/Connection.Script.txt" as Grand2
 
@@ -22,20 +21,13 @@
 
 #Struct ServerMessage {
 	Text Action;
-	Text Message;
-	Text Token;
+	Text ChatMessage;
 	JsonBlock[] Blocks;
-}
-
-#Struct sServer {
-	Text Host;
-	Text Password;
-	Text Token;
 }
 
 // externals
 #Struct Grand2::sLobbyInfo as sLobbyInfo
-
+#Struct Grand2::sServerInfo as sServerInfo
 
 #Const C_CanyonRoadBlocks [
 	"RoadMain"
@@ -66,7 +58,6 @@
 ]
 
 // Globals
-declare sServer ServerInfo;
 declare Integer LastEdit;
 declare	Boolean IsExternalEdit;
 declare Text[] CurrentCollectionRoadBlocks;
@@ -102,11 +93,11 @@ CMapEditorPlugin::CardinalDirections convertBlockDirection(Integer direction) {
 
 Void OnResponse(Text _response) {
 	declare ServerMessage Data;
-	declare success = Data.fromjson(_response);
+	declare val = Data.fromjson(_response);
 
 	switch (Data.Action) {
 		case "Chat": {
-			AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ Data.Message);
+			AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ Data.ChatMessage);
 		}
 		case "ModifyMap": {
 			IsExternalEdit = True;
@@ -115,22 +106,22 @@ Void OnResponse(Text _response) {
 				declare BlockModel = GetBlockModelFromName(eBlock.ModelName);
 				switch (eBlock.Action) {
 					case "Place": {
-							declare success = PlaceBlock(BlockModel, eBlock.CoordStart, convertBlockDirection(eBlock.Direction));
+						declare temp = PlaceBlock(BlockModel, eBlock.CoordStart, convertBlockDirection(eBlock.Direction));
 						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " at " ^ eBlock.CoordStart);
 					}
 					case "Remove": {
-							declare success = RemoveBlock(eBlock.CoordStart);
+						declare temp = RemoveBlock(eBlock.CoordStart);
 					}
 					case "PlaceRoad": {
-							declare success = PlaceRoadBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
+						declare temp = PlaceRoadBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
 						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
 					}
 					case "PlaceTerrain": {
-							declare success = PlaceTerrainBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
+						declare temp =PlaceTerrainBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
 						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
 					}
 					case "EraseTerrain": {
-						declare success = RemoveTerrainBlocks(eBlock.CoordStart, eBlock.CoordEnd);
+					declare temp = RemoveTerrainBlocks(eBlock.CoordStart, eBlock.CoordEnd);
 						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o-$o from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
 					}
 				}
@@ -157,15 +148,13 @@ IsExternalEdit = False;
 ***OnHttpRequest***
 ***
 
-/* if(Request.Url == serverHost^"/listener?login="^LocalUser.Login) {
+if(Request.Url == Grand2::GetPollUrl()) {
 	if (Request.StatusCode == 200) {
 		OnResponse(Request.Result);
 	}
-	log("waitin...");
-	HttpGet(HOST^"/listener?login="^LocalUser.Login);
+	log("waiting...");
+	Grand2::Poll();
 }
-*/
-declare dummy = "nothing";
 
 ***
 
@@ -173,13 +162,17 @@ declare dummy = "nothing";
 ***OnMapActioniedBlockPlace***
 ***
 
-if (IsExternalEdit == False){ 
+if (!IsExternalEdit) { 
 	declare JsonBlock block = JsonBlock{Action = "Place", CoordStart = Cursor.Coord, ModelName = Cursor.BlockModel.Name, Direction = getBlockDirection(Cursor.Dir), Sender = LocalUser.Login};
-//	SendMessage(block.tojson());
-	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ LocalUser.Login ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " at " ^ Cursor.Coord);
-} else {
-	IsExternalEdit = False;
+	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
+	Grand2::SendMessage(message.tojson());
+	
+	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " at " ^ Cursor.Coord);
 }
+else {
+IsExternalEdit = False; 
+}
+
 
 ***
 
@@ -187,9 +180,10 @@ if (IsExternalEdit == False){
 ***
 
 declare JsonBlock block = JsonBlock{Action = "Remove", CoordStart = Cursor.Coord, Sender = LocalUser.Login};
+declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
+Grand2::SendMessage(message.tojson());
 
-// SendMessage(block.tojson());
-AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ LocalUser.Login ^ " $o-$o at " ^ Cursor.Coord);
+AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o-$o at " ^ Cursor.Coord);
 
 ***
 
@@ -198,7 +192,7 @@ AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::T
 if (IsExternalEdit == False) {
 	declare Action = "PlaceRoad"; 
 	
-	declare JsonBlock Road = JsonBlock{
+	declare JsonBlock block = JsonBlock{
 		Action = Action, 
 		ModelName = Cursor.BlockModel.Name, 
 		CoordStart = SelectionStartCoord,
@@ -206,8 +200,9 @@ if (IsExternalEdit == False) {
 		Sender = LocalUser.Login
 		};
 
-//	SendMessage(Road.tojson());
-	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ LocalUser.Login ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
+	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
+	Grand2::SendMessage(message.tojson());
+	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
 else{
 	IsExternalEdit = False;
@@ -220,28 +215,31 @@ else{
 if (IsExternalEdit == False) {
 	declare Action = "PlaceTerrain"; 
 	
-	declare JsonBlock Terrain = JsonBlock{
+	declare JsonBlock block = JsonBlock{
 	Action = Action,
 	ModelName = Cursor.TerrainBlockModel.Name,
 	CoordStart = SelectionStartCoord,
 	CoordEnd = SelectionEndCoord,
 	Sender = LocalUser.Login};
 
-	// SendMessage(Terrain.tojson());
-	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ LocalUser.Login ^ " $o+$o " ^ Cursor.TerrainBlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
+	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
+	Grand2::SendMessage(message.tojson());
+	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.TerrainBlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
+}else {
+IsExternalEdit = False; 
 }
-else{
-	IsExternalEdit = False;
-}
+
+
+
 
 ***
 
 ***OnMapActioniedTerrainErase***
 ***
-if (IsExternalEdit == False) {
+if (!IsExternalEdit) {
 	declare Action = "EraseTerrain"; 
 	
-	declare JsonBlock Terrain = JsonBlock
+	declare JsonBlock block = JsonBlock
 	{
 	Action = Action, 
 	ModelName = Cursor.TerrainBlockModel.Name, 
@@ -250,11 +248,12 @@ if (IsExternalEdit == False) {
 	Sender = LocalUser.Login
 	};
 
-//	SendMessage(Terrain.tojson());
-	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ LocalUser.Login ^ " $o-$o from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
+	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
+	Grand2::SendMessage(message.tojson());
+	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o-$o from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
-else{
-	IsExternalEdit = False;
+else {
+IsExternalEdit = False; 
 }
 
 ***
@@ -280,8 +279,10 @@ main() {
 	if (Page_StopScript) break;
 
  	foreach(HttpEvent in Http.PendingEvents) {
-		declare Request = HttpEvent.Request;		
-		+++ OnHttpRequest +++		
+		declare Request = HttpEvent.Request;
+		
+		+++ OnHttpRequest +++
+		
 		Http.Destroy(Request);
 	} // httpEvents
 
@@ -289,19 +290,21 @@ main() {
 	
 			switch (Event.Type) {
 				case CMapEditorPluginEvent::Type::LayerCustomEvent: {
+					log(Event.CustomEventData);
 					if(Event.CustomEventType == "connectHost") {
-							ServerInfo = sServer{ Host=Event.CustomEventData[0],Password=Event.CustomEventData[1]  };
-			   			declare sLobbyInfo response;
-							response = Grand2::ConnectServer(ServerInfo.Host^"/editor/lobby", ServerInfo.Password);
-							if (response.StatusCode == 200) {
-								ServerInfo.Token = response.Token;																
-							} else {
-							/** @todo send notification authenticating failed */
-							}
-					}
-					
+							declare serverHost = Event.CustomEventData[0];
+							declare	serverPassword = Event.CustomEventData[1];
+							declare	sLobbyInfo info = Grand2::ConnectServer(serverHost, serverPassword);
+							if (info.StatusCode == 200) {
+								log(info);
+								
+								if (Grand2::JoinInstance("0")) {
+										Grand2::Poll();
+								}
+							}							
+							continue;					
+					}					
 				}
-				
 				case CMapEditorPluginEvent::Type::MapModified: {
 					if(EditMode == ::EditMode::Unknown) {
 						log("Place mode unknow");		
