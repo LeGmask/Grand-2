@@ -49,6 +49,7 @@
 // Globals
 declare Integer LastEdit;
 declare	Boolean IsExternalEdit;
+declare Boolean IsSyncingMap;
 declare Text[] CurrentCollectionRoadBlocks;
 declare Int3 SelectionStartCoord;
 declare Int3 SelectionEndCoord;
@@ -79,6 +80,45 @@ CMapEditorPlugin::CardinalDirections convertBlockDirection(Integer direction) {
 	}
 	return CMapEditorPlugin::CardinalDirections::North;
 }
+Void SyncMap(JsonBlock[] Blocks, Boolean doLog) {
+			IsSyncingMap = True;
+			foreach (eBlock in Blocks) {
+			IsExternalEdit = True;
+			LastEdit = Now;
+				declare BlockModel = GetBlockModelFromName(eBlock.ModelName);
+				switch (eBlock.Action) {
+					case "Place": {
+						declare temp = PlaceBlock(BlockModel, eBlock.CoordStart, convertBlockDirection(eBlock.Direction));
+						if (doLog) {
+						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " at " ^ eBlock.CoordStart);
+						}
+					}
+					case "Remove": {
+						declare temp = RemoveBlock(eBlock.CoordStart);
+					}
+					case "PlaceRoad": {
+						declare temp = PlaceRoadBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
+						if (doLog) {
+						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
+						}
+					}
+					case "PlaceTerrain": {
+						declare temp =PlaceTerrainBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
+						if (doLog) {
+						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
+						}
+					}
+					case "EraseTerrain": {
+					declare temp = RemoveTerrainBlocks(eBlock.CoordStart, eBlock.CoordEnd);
+					if (doLog) {
+						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o-$o from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
+						}
+					}
+				}
+			}
+			IsSyncingMap = False;
+}
+
 
 
 /* ==================================== 
@@ -108,32 +148,7 @@ Void OnResponse(Text _response) {
 			AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ Data.ChatMessage);
 		}
 		case "ModifyMap": {
-			IsExternalEdit = True;
-			LastEdit = Now;
-			foreach (eBlock in (Data.Blocks)) {
-				declare BlockModel = GetBlockModelFromName(eBlock.ModelName);
-				switch (eBlock.Action) {
-					case "Place": {
-						declare temp = PlaceBlock(BlockModel, eBlock.CoordStart, convertBlockDirection(eBlock.Direction));
-						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " at " ^ eBlock.CoordStart);
-					}
-					case "Remove": {
-						declare temp = RemoveBlock(eBlock.CoordStart);
-					}
-					case "PlaceRoad": {
-						declare temp = PlaceRoadBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
-						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
-					}
-					case "PlaceTerrain": {
-						declare temp =PlaceTerrainBlocks(BlockModel, eBlock.CoordStart, eBlock.CoordEnd);
-						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o+$o " ^ eBlock.ModelName ^ " from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
-					}
-					case "EraseTerrain": {
-					declare temp = RemoveTerrainBlocks(eBlock.CoordStart, eBlock.CoordEnd);
-						AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ eBlock.Sender ^ " $o-$o from " ^ eBlock.CoordStart ^ " to " ^ eBlock.CoordEnd);
-					}
-				}
-			}
+			SyncMap(Data.Blocks, True);
 		}
 	}
 }
@@ -150,7 +165,7 @@ ManialinkText = Grand2UI::getUi();
 log("starting...");
 log(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " > " ^ ScriptName ^ " V " ^ Version ^ " launched.");
 IsExternalEdit = False;
-
+IsSyncingMap = False;
 ***
 
 
@@ -171,7 +186,7 @@ if(Request.Url == Grand2::GetPollUrl()) {
 ***OnMapActioniedBlockPlace***
 ***
 
-if (!IsExternalEdit) { 
+if (IsExternalEdit == False) { 
 	declare block = JsonBlock{Action = "Place", CoordStart = Cursor.Coord, ModelName = Cursor.BlockModel.Name, Direction = getBlockDirection(Cursor.Dir), Sender = LocalUser.Login};
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
 	Grand2::SendMessage(message);
@@ -182,13 +197,15 @@ else {
 IsExternalEdit = False; 
 }
 
-
 ***
 
 ***OnMapActioniedBlockErase***
 ***
 
-declare JsonBlock block = JsonBlock{Action = "Remove", CoordStart = Cursor.Coord, Sender = LocalUser.Login};
+declare JsonBlock block = JsonBlock{Action = "Remove", 
+																		CoordStart = Cursor.Coord,
+																		Sender = LocalUser.Login
+																		};
 declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
 Grand2::SendMessage(message);
 
@@ -200,8 +217,7 @@ AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::T
 ***
 if (IsExternalEdit == False) {
 	declare Action = "PlaceRoad"; 
-	
-	declare JsonBlock block = JsonBlock{
+		declare JsonBlock block = JsonBlock{
 		Action = Action, 
 		ModelName = Cursor.BlockModel.Name, 
 		CoordStart = SelectionStartCoord,
@@ -214,7 +230,7 @@ if (IsExternalEdit == False) {
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
 else{
-	IsExternalEdit = False;
+	IsExternalEdit = False; 
 }
 
 ***
@@ -222,6 +238,7 @@ else{
 ***OnMapActioniedTerrainPlace***
 ***
 if (IsExternalEdit == False) {
+	IsExternalEdit = False; 
 	declare Action = "PlaceTerrain"; 
 	
 	declare JsonBlock block = JsonBlock{
@@ -234,8 +251,6 @@ if (IsExternalEdit == False) {
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
 	Grand2::SendMessage(message);
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.TerrainBlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
-}else {
-IsExternalEdit = False; 
 }
 
 
@@ -245,7 +260,7 @@ IsExternalEdit = False;
 
 ***OnMapActioniedTerrainErase***
 ***
-if (!IsExternalEdit) {
+if (IsExternalEdit) {
 	declare Action = "EraseTerrain"; 
 	
 	declare JsonBlock block = JsonBlock
@@ -262,7 +277,7 @@ if (!IsExternalEdit) {
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o-$o from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
 else {
-IsExternalEdit = False; 
+	IsExternalEdit = False; 
 }
 
 ***
@@ -295,23 +310,33 @@ main() {
 		Http.Destroy(Request);
 	} // httpEvents
 
-	  foreach (Event in PendingEvents) {
+	  foreach (Event in PendingEvents) {			
 			switch (Event.Type) {
 				case CMapEditorPluginEvent::Type::LayerCustomEvent: {
-					log(Event.CustomEventData);
-					if(Event.CustomEventType == "connectHost") {
+						if(Event.CustomEventType == "start") {	 
+							declare action = Event.CustomEventData[0];
+							if (action == "1") {
+							
+							} else {
+							
+							}
+						}
+						if(Event.CustomEventType == "connectHost") {
 							declare serverHost = Event.CustomEventData[0];
 							declare	serverPassword = Event.CustomEventData[1];
 							declare	sLobbyInfo info = Grand2::ConnectServer(serverHost, serverPassword);
 							if (info.StatusCode == 200) {
-								log(info);
-								
-								if (Grand2::JoinInstance("0")) {
-										Grand2::Poll();
-								}
+							// @todo display here instance chooser layer
+							
+							declare ServerMessage mapMessage = Grand2::JoinInstance("0");
+									if (mapMessage.Action == "SyncMap") {
+											SyncMap(mapMessage.Blocks, False);
+											Grand2::Poll();
+									}
 							}							
 							continue;					
-					}					
+						}
+						
 				}
 				case CMapEditorPluginEvent::Type::MapModified: {
 					if(EditMode == ::EditMode::Unknown) {
@@ -365,18 +390,19 @@ main() {
 					SelectionEndCoord = <0, 0, 0>;
 				}	
 			}
-			if (IsExternalEdit == True){
-				if((Now - LastEdit) > 10 ) {
-					IsExternalEdit = False;
-				}
-			}
-			
+			if (IsExternalEdit == True && IsSyncingMap == False){
+					if((Now - LastEdit) > 10 ) {
+						IsExternalEdit = False;
+					}
+			}			
 		} // pending events
 		
 		// sync cursor every 5 seconds
-		if (Now - Grand2::GetLastUpdate() > MinUpdateRate) {
-				declare message = ServerMessage{Action="SyncCursor"};			
-				Grand2::SendMessage(message);				
+		if (Grand2::isConnected()) {
+			if (Now - Grand2::GetLastUpdate() > MinUpdateRate) {
+					declare message = ServerMessage{Action="SyncCursor"};			
+					Grand2::SendMessage(message);				
+			}
 		}
 		
 		+++ Loop +++

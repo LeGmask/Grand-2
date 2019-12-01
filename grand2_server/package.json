@@ -15,6 +15,7 @@
     "express-useragent": "^1.0.13",
     "http-errors": "~1.6.3",
     "morgan": "~1.9.1",
+    "multidimensional": "^1.0.1",
     "twig": "~0.10.3"
   }
 }

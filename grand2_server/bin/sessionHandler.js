@@ -1,5 +1,6 @@
 let utils = require('./utils.js');
 let cli = require('./cli.js');
+let mapData = require('./mapData');
 
 class sessionHandler {
 
@@ -9,7 +10,7 @@ class sessionHandler {
         this.clientResponses = [];
         this.timeoutIds = [];
         this.users = [];
-
+        this.map = new mapData();
     }
 
     getStatus() {
@@ -31,7 +32,12 @@ class sessionHandler {
             Nickname: req.user.nickname,
             isAdmin: (this.users.length == 0), // boolean
         });
-        res.send("ok");
+        let message = req.body['data'] || "{}";
+        let data = JSON.parse(message);
+
+        data.Action = "SyncMap";
+        data.Blocks = this.map.getMapData();
+        res.send(JSON.stringify(data));
     }
 
     registerListener(req, res) {
@@ -46,11 +52,13 @@ class sessionHandler {
         }
         res.setHeader('Content-Type', 'text/plain;charset=utf-8');
         res.setHeader("Cache-Control", "no-cache, must-revalidate");
+
         var login = "n/a";
         if (req.user) {
             login = req.user.login;
         }
         this.clientResponses[id] = { login: login || null, response: res };
+
         let self = this;
         req.on('close', function (err) {
             if (req.session.views) {
@@ -73,16 +81,23 @@ class sessionHandler {
      */
     sendMessage(req, res) {
         let message = req.body['data'] || "{}";
+        let data = JSON.parse(message);
+        switch (data.Action) {
+            case "ModifyMap": {
+                this.map.modifyMap(data.Blocks);
+                break;
+            }
+        }
+
         req.session.cookie.expires = new Date(Date.now() + 30000);
         req.session.cookie.maxAge = 60000;
         for (let client in this.clientResponses) {
+            //if (this.clientResponses[client].login !== login) {
             console.log("sending", this.clientResponses[client].login);
-            // if (this.clientResponses[client].login !== login) {
             this.clientResponses[client].response.send(message);
             delete this.clientResponses[client];
             // }
         }
-
         res.send("ok.");
     }
 }
