@@ -123,9 +123,7 @@ Void chat() {
 		FrameChatListContainer.ClipWindowActive = True;
 		FrameChatListContainer.ClipWindowRelativePosition = <LabelChatList.RelativePosition[0] + LabelChatList.Size[0] / 2 - 1, LabelChatList.RelativePosition[1] - LabelChatList.Size[1] / 2 >;
 		FrameChatListContainer.ClipWindowSize = LabelChatList.Size;
-	
-		sleep(500);	
-		Chatpopup("Yop");	
+		
 		while (True) {
 			yield;
 			CurrentChatLine = UpdateChatList(CurrentChatLine);
@@ -174,5 +172,6 @@ main() {
   while(True) {
     yield;
 	//AddChatLine("Test");
+	sleep(5000);
   }
 }
