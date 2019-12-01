@@ -27,7 +27,34 @@
 	Text Token;	
 	sChannel[] Sessions;		
 }
+
+
+// serverMessage structs
+#Struct JsonBlock {
+	Text 		Action;
+	Text		Sender;
+	Text 		ModelName;
+	Int3 		CoordStart;
+	Int3 		CoordEnd;
+	Integer 	Direction;
+}
+
+#Struct JsonCursor {
+	Text Owner;
+	Int3 Position;
+	Vec3 Color;
+}
+
+#Struct ServerMessage {
+	Text Action;
+	Text ChatMessage;
+	JsonBlock[] Blocks;
+	JsonCursor Cursor;
+}
+
+
 declare sServerInfo Grand2_serverInfo;
+declare Integer LastUpdate;
 
 CHttpRequest HttpGet(Text _address) {
 		return Http.CreateGet(_address, False);
@@ -91,13 +118,23 @@ Text GetPollUrl() {
 	return Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/listener";
 }
 
+Integer GetLastUpdate() {
+	return LastUpdate;
+}
+
+Void setLastUpdate() {
+	LastUpdate = Now;
+}
 
 Void Poll() {
 		declare req = HttpPost(GetPollUrl(), []);
 }
 
-Void SendMessage(Text message) {
-	declare req = HttpPost(Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/push", ["data"=>message]);
+Void SendMessage(ServerMessage message) {
+	LastUpdate = Now;
+	declare helperMessage = message;
+	helperMessage.Cursor = JsonCursor{Owner=LocalUser.Name, Position=Cursor.Coord};
+	declare req = HttpPost(Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/push", ["data" => helperMessage.tojson()]);
 }
 
 Boolean JoinInstance(Text _instanceId) {

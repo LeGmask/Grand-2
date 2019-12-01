@@ -9,25 +9,11 @@
 #Const	Version	"0.1"
 #Const	ScriptName	"Grand2.Script.txt"
 
-// structs
-#Struct JsonBlock {
-	Text 		Action;
-	Text		Sender;
-	Text 		ModelName;
-	Int3 		CoordStart;
-	Int3 		CoordEnd;
-	Integer 	Direction;
-}
-
-#Struct ServerMessage {
-	Text Action;
-	Text ChatMessage;
-	JsonBlock[] Blocks;
-}
-
 // externals
 #Struct Grand2::sLobbyInfo as sLobbyInfo
 #Struct Grand2::sServerInfo as sServerInfo
+#Struct Grand2::ServerMessage as ServerMessage
+#Struct Grand2::JsonBlock as JsonBlock
 
 #Const C_CanyonRoadBlocks [
 	"RoadMain"
@@ -57,12 +43,16 @@
 	"RoadDirt"
 ]
 
+// in milliseconds
+#Const MinUpdateRate 5000
+
 // Globals
 declare Integer LastEdit;
 declare	Boolean IsExternalEdit;
 declare Text[] CurrentCollectionRoadBlocks;
 declare Int3 SelectionStartCoord;
 declare Int3 SelectionEndCoord;
+declare Int3[Text] CustomCursors;
 
 Void AddEventLine(Text _Line) {
 	declare Text	Page_EventList			for ManialinkPage = "";
@@ -91,10 +81,28 @@ CMapEditorPlugin::CardinalDirections convertBlockDirection(Integer direction) {
 }
 
 
+/* ==================================== 
+ *  HTTP RESPONSE 
+ * ===============================
+ */
 Void OnResponse(Text _response) {
 	declare ServerMessage Data;
 	declare val = Data.fromjson(_response);
 
+	if (Data.Cursor.Owner != LocalUser.Name) {
+		CustomCursors[Data.Cursor.Owner] = Data.Cursor.Position;
+	}
+	
+	declare Integer i = 0;
+	if (CustomSelectionCoords.count < CustomCursors.count) {
+		CustomSelectionCoords.add(Data.Cursor.Position);
+	}
+	
+	foreach (pos in CustomCursors) {
+		CustomSelectionCoords[i] = pos;
+		i+=1;
+	}
+		
 	switch (Data.Action) {
 		case "Chat": {
 			AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ Data.ChatMessage);
@@ -136,6 +144,7 @@ declare Boolean	Page_LaunchPlugin for ManialinkPage = True;
 declare Boolean	Page_Events for ManialinkPage;
 declare Boolean Page_StopScript for ManialinkPage = False;
 
+Grand2::setLastUpdate();
 LayersDefaultManialinkVersion = 3;
 ManialinkText = Grand2UI::getUi();
 log("starting...");
@@ -163,9 +172,9 @@ if(Request.Url == Grand2::GetPollUrl()) {
 ***
 
 if (!IsExternalEdit) { 
-	declare JsonBlock block = JsonBlock{Action = "Place", CoordStart = Cursor.Coord, ModelName = Cursor.BlockModel.Name, Direction = getBlockDirection(Cursor.Dir), Sender = LocalUser.Login};
+	declare block = JsonBlock{Action = "Place", CoordStart = Cursor.Coord, ModelName = Cursor.BlockModel.Name, Direction = getBlockDirection(Cursor.Dir), Sender = LocalUser.Login};
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
-	Grand2::SendMessage(message.tojson());
+	Grand2::SendMessage(message);
 	
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " at " ^ Cursor.Coord);
 }
@@ -181,7 +190,7 @@ IsExternalEdit = False;
 
 declare JsonBlock block = JsonBlock{Action = "Remove", CoordStart = Cursor.Coord, Sender = LocalUser.Login};
 declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
-Grand2::SendMessage(message.tojson());
+Grand2::SendMessage(message);
 
 AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o-$o at " ^ Cursor.Coord);
 
@@ -201,7 +210,7 @@ if (IsExternalEdit == False) {
 		};
 
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
-	Grand2::SendMessage(message.tojson());
+	Grand2::SendMessage(message);
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.BlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
 else{
@@ -223,7 +232,7 @@ if (IsExternalEdit == False) {
 	Sender = LocalUser.Login};
 
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
-	Grand2::SendMessage(message.tojson());
+	Grand2::SendMessage(message);
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o+$o " ^ Cursor.TerrainBlockModel.Name ^ " from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }else {
 IsExternalEdit = False; 
@@ -249,7 +258,7 @@ if (!IsExternalEdit) {
 	};
 
 	declare message = ServerMessage{Action="ModifyMap", Blocks=[block]};
-	Grand2::SendMessage(message.tojson());
+	Grand2::SendMessage(message);
 	AddEventLine(TimeLib::FormatDate(TimeLib::GetCurrent(), TimeLib::EDateFormats::Time) ^ " $o|$o " ^ block.Sender ^ " $o-$o from " ^ SelectionStartCoord ^ " to " ^ SelectionEndCoord);
 }
 else {
@@ -287,7 +296,6 @@ main() {
 	} // httpEvents
 
 	  foreach (Event in PendingEvents) {
-	
 			switch (Event.Type) {
 				case CMapEditorPluginEvent::Type::LayerCustomEvent: {
 					log(Event.CustomEventData);
@@ -362,7 +370,14 @@ main() {
 					IsExternalEdit = False;
 				}
 			}
+			
 		} // pending events
+		
+		// sync cursor every 5 seconds
+		if (Now - Grand2::GetLastUpdate() > MinUpdateRate) {
+				declare message = ServerMessage{Action="SyncCursor"};			
+				Grand2::SendMessage(message);				
+		}
 		
 		+++ Loop +++
   }
