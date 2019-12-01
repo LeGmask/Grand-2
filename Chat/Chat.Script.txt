@@ -24,7 +24,7 @@ return """
 
 
 	
-	<frame id="chat_popup" hidden="0">
+	<frame id="chat_popup" hidden="1">
 		<label pos="128 -38" size="54.9 5" text="New message:" halign="center" valign="center" scriptevents="1" id="frompopup"/>
 		<quad pos="128 -41" z-index="0" size="54.9 5" bgcolor="FFFA" style="EnergyBar" substyle="HeaderGaugeRight" halign="center" valign="center"/>
 		<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" halign="left" valign="top" textsize="2" autonewline="1" scriptevents="1" id="messagepopup"/>
@@ -33,7 +33,7 @@ return """
 	</frame>
 	
 	
-	<frame posn="4 0 8" id="chat" hidden="0">
+	<frame posn="4 0 8" id="chat" hidden="1">
 		<frame posn="77 61 2" id="chatlistcontainer">
 			<label posn="-162 19" sizen="170 112" autonewline="1" textsize="2,5" scriptevents="1" id="chatlist"/>	
 		</frame>
@@ -84,11 +84,13 @@ return """
 
 Integer UpdateChatList(Integer _CurrentChatLine) {
 	declare Text Page_ChatList for Page;
+	declare Text Page_ChatPopup for Page;
 	declare CMlLabel ChatList <=> (Page.GetFirstChild("chatlist") as CMlLabel);
 	declare Integer OldLineCount = ChatList.ValueLineCount;
 	
 	if (Page_ChatList != ChatList.Value) {
 		ChatList.SetText(Page_ChatList);
+		Chatpopup(Page_ChatPopup);
 		yield;
 		declare Integer NewLinesCount = ChatList.ValueLineCount - OldLineCount;
 		
@@ -114,10 +116,12 @@ Void chat() {
 	}
 }
 	main() {
-		declare CMlFrame	FrameChatListContainer	<=>	(Page.GetFirstChild("chatlistcontainer")	as CMlFrame);
-		declare CMlLabel	LabelChatList			<=>	(Page.GetFirstChild("chatlist")			as CMlLabel);
-		declare CMlQuad		QuadChat				<=>	(Page.GetFirstChild("chatbtn")				as CMlQuad);
-
+		declare CMlFrame	FrameChatListContainer	<=>	(Page.GetFirstChild("chatlistcontainer") as CMlFrame);
+		declare CMlLabel	LabelChatList			<=>	(Page.GetFirstChild("chatlist") as CMlLabel);
+		declare CMlQuad		QuadChat				<=>	(Page.GetFirstChild("chatbtn") as CMlQuad);
+		declare CMlQuad		QuadChatsendmsg			<=>	(Page.GetFirstChild("send")	as CMlQuad);
+		declare CMlEntry 	TextEntryMessage		<=> (Page.GetFirstChild("message") as CMlEntry);
+		
 		declare Integer CurrentChatLine = 0;	
 
 		FrameChatListContainer.ClipWindowActive = True;
@@ -136,6 +140,10 @@ Void chat() {
 						}
 					}
 				}
+				if (Event.Type == CMlScriptEvent::Type::MouseClick && Event.ControlId == "Send") {
+				SendCustomEvent("onSendMsg", [TextEntryMessage.Value]);
+				TextEntryMessage.Value = "";
+				}
 			}
 		}
 	
@@ -149,7 +157,10 @@ Text LineFeed() {
 }
 Void AddChatLine(Text _Line) {
 	declare Text Page_ChatList for ManialinkPage = "";
+	declare Text Page_ChatPopup for ManialinkPage = "";
 	Page_ChatList ^= LineFeed() ^ _Line;
+	Page_ChatPopup = _Line;
+
 }
 ***OnInit***
 ***
@@ -157,6 +168,7 @@ LayersDefaultManialinkVersion = 3;
 ManialinkText = getUi();
 AddChatLine("> $0FFGrand 2 $000- $FFFgsuccessfuly started ! ");
 log("starting...");
+sleep(300);
 
 ***
 
@@ -172,6 +184,16 @@ main() {
   while(True) {
     yield;
 	//AddChatLine("Test");
-	sleep(5000);
+	//sleep(5000);
+	foreach (Event in PendingEvents) {
+		switch (Event.Type) {
+			case CMapEditorPluginEvent::Type::LayerCustomEvent: {		
+				log(Event.CustomEventData); // disable after you dont' need it :)
+				declare Text msg = Event.CustomEventData[0];
+				//sendmsgonline
+				AddChatLine(msg);				
+			}
+		}
+	}
   }
 }
