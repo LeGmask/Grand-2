@@ -312,8 +312,8 @@ main() {
 			
   while(True) {
     yield;
-	sleep(5000);
-	AddChatLine("Test");
+	//sleep(5000);
+	//AddChatLine("Test");
 	if (Page_StopScript) break;
 
  	foreach(HttpEvent in Http.PendingEvents) {
@@ -327,6 +327,11 @@ main() {
 	  foreach (Event in PendingEvents) {			
 			switch (Event.Type) {
 				case CMapEditorPluginEvent::Type::LayerCustomEvent: {
+						if(Event.CustomEventType == "onSendMsg") {	 
+							declare Text msg = Event.CustomEventData[0];
+							//TODO sendmsgOnline
+							AddChatLine(msg);	
+						}
 						if(Event.CustomEventType == "start") {	 
 							declare action = Event.CustomEventData[0];
 							if (action == "1") {
@@ -350,6 +355,7 @@ main() {
 							}							
 							continue;					
 						}
+
 						
 				}
 				case CMapEditorPluginEvent::Type::MapModified: {
