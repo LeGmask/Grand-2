@@ -64,8 +64,12 @@ Void AddChatLine(Text _Line) {
 	declare Text Page_ChatList for ManialinkPage = "";
 	declare Text Page_ChatPopup for ManialinkPage = "";
 	Page_ChatList ^= "\n" ^ _Line;
-	Page_ChatPopup = _Line;
-
+	if ((TextLib::Length(_Line)) >=70) {
+		Page_ChatPopup = TextLib::SubString(_Line, 0, 80)^"...";
+	}
+	else{
+		Page_ChatPopup = _Line;
+	}
 }
 
 
