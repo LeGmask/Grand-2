@@ -5,7 +5,10 @@ return """
     <style class="title" halign="center"  valign="center" textfont="RajdhaniMono" translate="0" textsize="8" />
     <style class="text"  textsize="4" textfont="BiryaniDemiBold" autonewline="1" textcolor="CCCCCCFF" halign="left" valign="top" />
     <style class="entry" valign="center2" halign="left" id="host" focusareacolor1="0002" focusareacolor2="0003" selecttext="1" />
-    </stylesheet>	
+    <style class="background" bgcolor="FFFFFFFF" style="Bgs1" substyle="BgTitleGlow" halign="center" valign="center" />
+	<style class="background2" style="Bgs1" substyle="BgCardList" halign="center" valign="center" opacity="0.75"/>
+			
+	</stylesheet>	
 
     <frame posn="0 0 5">
 		<frame posn="0 0 10">
@@ -101,6 +104,36 @@ return """
 		<frame id="SettingWheel">
 			<quad pos="149 -66" z-index="0" size="11 11" bgcolor="FFFA" style="Icons128x32_1" substyle="Settings" scriptevents="1" id="settings"/>
 		</frame>
+
+		<frame id="chat_popup" hidden="1">
+			
+			<label pos="128 -38" size="54.9 5" text="New message:" halign="center" valign="center" scriptevents="1" id="frompopup"/>
+			<quad pos="128 -41" z-index="0" size="54.9 5" bgcolor="FFFA" style="EnergyBar" substyle="HeaderGaugeRight" halign="center" valign="center"/>
+			<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" class="text" id="messagepopup"/>
+			<quad class="background" size="57 24" pos="128 -47"/>
+			<quad class="background2" size="57 24" pos="128 -47"/>
+		
+		</frame>
+
+		<frame posn="4 0 8" id="chat" hidden="1">
+			
+			<frame posn="77 61 2" id="chatlistcontainer">
+				
+				<label posn="-162 19" sizen="170 112" autonewline="1" textsize="2,5" scriptevents="1" id="chatlist"/>	
+			
+			</frame>
+			
+			<entry pos="-86 -45" size="139 8" default="" valign="center" focusareacolor2="7B7B7BFF" focusareacolor1="727272FF" scriptevents="1" style="TextValueSmall" id="message"/>
+			<label class="button" posn="71 -45" text="Send" scriptevents="1" id="Send" size="29 7.63"/>
+		
+			<quad class="background" size="180 140" pos="0 15"/>
+			<quad class="background2" size="180 140" pos="0 15"/>
+		
+		</frame>
+		<frame>
+			<quad pos="138 -66" z-index="0" size="11 11" bgcolor="FFFA" style="Icons128x32_1" substyle="Windowed" scriptevents="1" id="chatbtn"/>
+		</frame>
+
 	</frame>
 	<script><!--
 	
@@ -111,6 +144,8 @@ return """
 	declare Integer	LastEventListChange;
 	declare Boolean Setting_Debug;
 	declare Boolean State;
+	declare Integer	LastChatListChange;
+	declare Boolean ChatState;
 	
 	
 	Void ShowDialog(Text Message) {
@@ -284,6 +319,67 @@ return """
 		}
 		Dialog.Hide();
     }
+
+	Void chat() {
+		declare CMlFrame Chat <=> (Page.GetFirstChild("chat") as CMlFrame);
+		if (ChatState == False){
+			Chat.Show();
+			ChatState = True;
+		}
+		else if (ChatState == True){
+			Chat.Hide();
+			ChatState = False;
+		}
+	}
+	Void Chatpopup(Text _message) {
+		declare Integer DialogVisibleTime = Now;
+		declare Integer Closepopup = Now;
+		declare Boolean Close = False;
+	
+
+		declare CMlFrame Dialog <=> (Page.GetFirstChild("chat_popup") as CMlFrame);
+		declare CMlLabel Content <=> (Page.GetFirstChild("messagepopup") as CMlLabel);
+	
+	
+		Content.SetText(_message);
+
+	
+		while (!Close) {
+			yield;
+			Dialog.Show();
+			Dialog.RelativeScale = AL::EaseInOutSine(Now - DialogVisibleTime, 1.2, -0.2, 200);
+			if ((Now - Closepopup) > 3000) {
+				Close = True;
+			}
+		}
+		Dialog.Hide();
+	
+
+		sleep(200);
+
+	}
+	Integer UpdateChatList(Integer _CurrentChatLine) {
+		declare Text Page_ChatList for Page;
+		declare Text Page_ChatPopup for Page;
+		declare CMlLabel ChatList <=> (Page.GetFirstChild("chatlist") as CMlLabel);
+		declare Integer OldLineCount = ChatList.ValueLineCount;
+	
+		if (Page_ChatList != ChatList.Value) {
+			ChatList.SetText(Page_ChatList);
+			Chatpopup(Page_ChatPopup);
+			yield;
+			declare Integer NewLinesCount = ChatList.ValueLineCount - OldLineCount;
+
+			if (NewLinesCount > 0 && ChatList.ValueLineCount > 18) {
+				ChatList.RelativePosition[1] = (ChatList.ValueLineCount - 18) * 2.;
+			}
+
+			LastChatListChange = Now;
+			return ChatList.ValueLineCount - 18;
+		}
+
+		return _CurrentChatLine;
+	}
     
 	main() {
 		declare Boolean Page_LaunchPlugin for Page = False;
@@ -295,13 +391,23 @@ return """
 		declare CMlQuad		QuadEventsUp			<=>	(Page.GetFirstChild("eventup")				as CMlQuad);
 		declare CMlQuad		QuadEventsDown			<=>	(Page.GetFirstChild("eventdown")			as CMlQuad);
 		declare CMlQuad		QuadSetting				<=>	(Page.GetFirstChild("settings")				as CMlQuad);
+		declare CMlFrame	FrameChatListContainer	<=>	(Page.GetFirstChild("chatlistcontainer") as CMlFrame);
+		declare CMlLabel	LabelChatList			<=>	(Page.GetFirstChild("chatlist") as CMlLabel);
+		declare CMlQuad		QuadChat				<=>	(Page.GetFirstChild("chatbtn") as CMlQuad);
+		declare CMlQuad		QuadChatsendmsg			<=>	(Page.GetFirstChild("send")	as CMlQuad);
+		declare CMlEntry 	TextEntryMessage		<=> (Page.GetFirstChild("message") as CMlEntry);
 	
 		declare Integer CurrentLine = 0;	
-	
+		declare Integer CurrentChatLine = 0;	
+
 		FrameEventListContainer.ClipWindowActive = True;
 		FrameEventListContainer.ClipWindowRelativePosition = <LabelEventList.RelativePosition[0] + LabelEventList.Size[0] / 2 - 1, LabelEventList.RelativePosition[1] - LabelEventList.Size[1] / 2 >;
 		FrameEventListContainer.ClipWindowSize = LabelEventList.Size;
 	
+		FrameChatListContainer.ClipWindowActive = True;
+		FrameChatListContainer.ClipWindowRelativePosition = <LabelChatList.RelativePosition[0] + LabelChatList.Size[0] / 2 - 1, LabelChatList.RelativePosition[1] - LabelChatList.Size[1] / 2 >;
+		FrameChatListContainer.ClipWindowSize = LabelChatList.Size;
+		
 		Setting_Debug = False;
 		
 	
@@ -342,7 +448,7 @@ return """
 							}
 						}
 	//-------------------Debug Label----------------------------------\\
-	
+	//-------------------Setting---------------------------------------\\
 						case QuadSetting: { // show setting
 							if (Setting_Debug == True){
 								setting("Enable");
@@ -352,10 +458,18 @@ return """
 							}
 							
 						}
+	//-------------------Setting-------------------------------------\\
+	//-------------------Chat-----------------------------------------\\				
+						case QuadChat: { // show Chat
+							chat();
+
+						}
+	//-------------------Chat-----------------------------------------\\
 					}
 				}
 			}
 		CurrentLine = UpdateEventList(CurrentLine);
+		CurrentChatLine = UpdateChatList(CurrentChatLine);
 		}
 	}
 	--></script>	

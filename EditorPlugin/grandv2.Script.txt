@@ -60,6 +60,14 @@ Void AddEventLine(Text _Line) {
 	Page_EventList ^= "\n" ^ _Line;
 }
 
+Void AddChatLine(Text _Line) {
+	declare Text Page_ChatList for ManialinkPage = "";
+	declare Text Page_ChatPopup for ManialinkPage = "";
+	Page_ChatList ^= "\n" ^ _Line;
+	Page_ChatPopup = _Line;
+
+}
+
 
 Integer getBlockDirection(CMapEditorPlugin::CardinalDirections direction) {
 	switch (direction) {
@@ -300,6 +308,8 @@ main() {
 			
   while(True) {
     yield;
+	sleep(5000);
+	AddChatLine("Test");
 	if (Page_StopScript) break;
 
  	foreach(HttpEvent in Http.PendingEvents) {
