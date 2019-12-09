@@ -109,7 +109,7 @@ return """
 			
 			<label pos="128 -38" size="54.9 5" text="New message:" halign="center" valign="center" scriptevents="1" id="frompopup"/>
 			<quad pos="128 -41" z-index="0" size="54.9 5" bgcolor="FFFA" style="EnergyBar" substyle="HeaderGaugeRight" halign="center" valign="center"/>
-			<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" class="text" textsize="3" id="messagepopup"/>
+			<label pos="101 -43" size="54 14" text="This is a test message for the popup test view" class="text" id="messagepopup"/>
 			<quad class="background" size="57 24" pos="128 -47"/>
 			<quad class="background2" size="57 24" pos="128 -47"/>
 		
@@ -322,15 +322,13 @@ return """
 
 	Void chat() {
 		declare CMlFrame Chat <=> (Page.GetFirstChild("chat") as CMlFrame);
-		if (ChatState == False){
-			Chat.Show();
-			ChatState = True;
-		}
-		else if (ChatState == True){
+		if (!Chat.Visible) {
+			Chat.Show();			
+		} else {
 			Chat.Hide();
-			ChatState = False;
-		}
+		}		
 	}
+
 	Void Chatpopup(Text _message) {
 		declare Integer DialogVisibleTime = Now;
 		declare Integer Closepopup = Now;
@@ -351,13 +349,14 @@ return """
 			if ((Now - Closepopup) > 3000) {
 				Close = True;
 			}
-		}
+ 		}			
 		Dialog.Hide();
 	
 
 		sleep(200);
 
 	}
+	
 	Integer UpdateChatList(Integer _CurrentChatLine) {
 		declare Text Page_ChatList for Page;
 		declare Text Page_ChatPopup for Page;
@@ -384,8 +383,7 @@ return """
 	main() {
 		declare Boolean Page_LaunchPlugin for Page = False;
 		declare Boolean Page_StopScript for Page = False;
-		
-		
+				
 		declare CMlFrame	FrameEventListContainer	<=>	(Page.GetFirstChild("eventlistcontainer")	as CMlFrame);
 		declare CMlLabel	LabelEventList			<=>	(Page.GetFirstChild("eventlist")			as CMlLabel);
 		declare CMlQuad		QuadEventsUp			<=>	(Page.GetFirstChild("eventup")				as CMlQuad);
@@ -409,8 +407,7 @@ return """
 		FrameChatListContainer.ClipWindowSize = LabelChatList.Size;
 		
 		Setting_Debug = False;
-		
-	
+			
 		//login 
 		Page_LaunchPlugin = ShowBooleanDialog("Launching this plugin will reset all you current work. Continue?");
 		if (State == False){
@@ -431,16 +428,20 @@ return """
 			if (Page_StopScript) break;
 	
 			foreach (Event in PendingEvents) {
-				if (Event.Type == CMlEvent::Type::KeyPress) { //show chat when press T tchat
+				if (Event.Type == CMlScriptEvent::Type::KeyPress) { //show chat when press T tchat
 					if ((Event.KeyName == "Z" && (IsKeyPressed(64) || IsKeyPressed(107))) || Event.KeyName == "T") {
 						chat();
 					}
 				}
-				if (Event.Type == CMlScriptEvent::Type::MouseClick && Event.ControlId == "Send") {
-					SendCustomEvent("onSendMsg", [TextEntryMessage.Value]);
-					TextEntryMessage.Value = "";
+				if ( (Event.Type == CMlScriptEvent::Type::EntrySubmit && Event.ControlId == "message") || 
+					 (Event.Type == CMlScriptEvent::Type::MouseClick && Event.ControlId == "Send")) {
+						 declare ChatMessage <=> (Page.GetFirstChild("message") as CMlEntry);
+						SendCustomEvent("sendChat", [
+							ChatMessage.Value
+						]);
+						ChatMessage.Value = "";
 				}
-				if (Event.Type == CMlEvent::Type::MouseClick) {
+				if (Event.Type == CMlScriptEvent::Type::MouseClick) {
 					switch (Event.Control) {
 	
 	//-------------------Debug Label----------------------------------\\

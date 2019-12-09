@@ -33,7 +33,7 @@
 // serverMessage structs
 #Struct JsonBlock {
 	Text 		Action;
-	Text TimeStamp;
+	Text 		TimeStamp;
 	Text		Sender;
 	Text 		ModelName;
 	Int3 		CoordStart;
@@ -133,7 +133,7 @@ Void setLastUpdate() {
 }
 
 Void Poll() {
-		declare req = HttpPost(GetPollUrl(), []);
+	declare req = HttpPost(GetPollUrl(), []);
 }
 
 Void SendMessage(ServerMessage message) {
@@ -145,6 +145,12 @@ Void SendMessage(ServerMessage message) {
 	}
 	declare req = HttpPost(Grand2_serverInfo.Host^"/editor/"^Grand2_serverInfo.InstanceId^"/push", ["data" => helperMessage.tojson()]);
 }
+
+Void SendChatMessage(Text message) {	
+	SendMessage(ServerMessage{Action="sendChat", ChatMessage=message});
+}
+
+
 
 ServerMessage JoinInstance(Text _instanceId) {
 	declare ServerMessage message = ServerMessage{Action = "JoinInstance"};

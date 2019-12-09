@@ -327,10 +327,10 @@ main() {
 	  foreach (Event in PendingEvents) {			
 			switch (Event.Type) {
 				case CMapEditorPluginEvent::Type::LayerCustomEvent: {
-						if(Event.CustomEventType == "onSendMsg") {	 
+						if(Event.CustomEventType == "chatMessage") {	 
 							declare Text msg = Event.CustomEventData[0];
 							//TODO sendmsgOnline
-							AddChatLine(msg);	
+							Grand2::SendChatMessage(msg);
 						}
 						if(Event.CustomEventType == "start") {	 
 							declare action = Event.CustomEventData[0];
